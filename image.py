@@ -89,7 +89,8 @@ lums = []
 platforms = 0
 objects = 0
 blockID = 0
-scale = 4 # Check every *scale* pixels
+scale = 3 # Check every *scale* pixels
+hue_join = 10 # +- allowance for hue value to join blocks together
 
 # Detect dark / solid objects
 for y in range(0,im.size[1]//scale):
@@ -97,14 +98,19 @@ for y in range(0,im.size[1]//scale):
 	row_blocks = []
 
 	for x in range(0,im.size[0]//scale):
-		val = rgb_to_hsl(pix[x*scale,y*scale])[2]*100
+		hsl = rgb_to_hsl(pix[x*scale,y*scale])
+		val = hsl[2]*100
+		hue = hsl[0]*255
+		
+		if x > 0:
+			last_hue = rgb_to_hsl(pix[(x*scale)-scale,y*scale])[0]*255
 
 		solid = True
 		if( val < lum_limit and platform == 0 ):
 			# We have found a new platform
 			platform = 1
 			blockID += 1
-		elif( platform > 0 and val < lum_limit ):
+		elif( platform > 0 and ((val < lum_limit) or (hue > last_hue-hue_join and hue < last_hue+hue_join)) ):
 			# We have found another part of the platform
 			platform += 1
 		elif( platform > 0 ):
