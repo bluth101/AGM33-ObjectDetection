@@ -1,8 +1,16 @@
-from PIL import Image
 import colorsys
 import pygame
 import random
+import numpy as np
+import cv2
 
+# SETTINGS
+gChecks_above = 10 # How many pixels are checked above for an object to join
+gLum_limit = 40.0 # Any luminosity below below % will count as dark
+gDebug = True # Will highlight detected objects
+gScale = 3 # Check every *scale* pixels
+
+# returns: hsl of rgb
 def rgb_to_hsl(rgb):
 	r = rgb[0]/255
 	g = rgb[1]/255
@@ -61,6 +69,7 @@ def convert_block_id(source, tochange, newid):
 			if source[i] == tochange:
 					source[i] = newid
 
+# returns: number of blocks found in data
 def get_block_count(source):
 	found = []
 	for y in range(0,len(source)):
@@ -70,102 +79,66 @@ def get_block_count(source):
 				found.append(val)
 	return len(found)
 
-# Start Pygame at top for timer functions
-pygame.init()
+# returns: block data
+def process_image(pix):
+	read_width = len(pix)
+	read_height = len(pix[0])
+	# Variables for object detection
+	blocks = []
+	platforms = 0
+	objects = 0
+	blockID = 0
+	hue_join = 10 # +- allowance for hue value to join blocks together
 
-# SETTINGS
-checks_above = 10 # How many pixels are checked above for an object to join
-lum_limit = 40.0 # Any luminosity below below % will count as dark
-show_debug = True # Will highlight detected objects
+	# Detect dark / solid objects
+	# originally im.size[1]
+	for y in range(0,read_height//gScale):
+		platform = 0
+		row_blocks = []
 
-# Load image
-image = "real2.jpg"
-im = Image.open(image)
-pix = im.load()
+		# originally im.size[0]
+		for x in range(0,read_width//gScale):
+			hsl = rgb_to_hsl(pix[x*gScale,y*gScale])
+			val = hsl[2]*100
+			hue = hsl[0]*255
+			
+			if x > 0:
+				last_hue = rgb_to_hsl(pix[(x*gScale)-gScale,y*gScale])[0]*255
 
-# Variables for object detection
-blocks = []
-lums = []
-platforms = 0
-objects = 0
-blockID = 0
-scale = 3 # Check every *scale* pixels
-hue_join = 10 # +- allowance for hue value to join blocks together
+			solid = True
+			if( val < gLum_limit and platform == 0 ):
+				# We have found a new platform
+				platform = 1
+				blockID += 1
+			elif( platform > 0 and ((val < gLum_limit) or (hue > last_hue-hue_join and hue < last_hue+hue_join)) ):
+				# We have found another part of the platform
+				platform += 1
+			elif( platform > 0 ):
+				# We have found the end of the platform
+				platforms += 1
+				platform = 0
+			else:
+				row_blocks.append(0)
+				solid = False
 
-# Detect dark / solid objects
-for y in range(0,im.size[1]//scale):
-	platform = 0
-	row_blocks = []
+			# If this isnt the first row, and there is a block above, join it to our current block
+			if( solid ):
+				row_blocks.append(blockID)
+				if( y > 0 ):
+					for test in range(1,gChecks_above):
+						if( test > y ):
+							break
+						above = blocks[y-test][x]
+						if( above != blockID and above != 0 ):
+							convert_block_id(blocks, above, blockID)
+							convert_block_id(row_blocks, above, blockID)
+							break
 
-	for x in range(0,im.size[0]//scale):
-		hsl = rgb_to_hsl(pix[x*scale,y*scale])
-		val = hsl[2]*100
-		hue = hsl[0]*255
-		
-		if x > 0:
-			last_hue = rgb_to_hsl(pix[(x*scale)-scale,y*scale])[0]*255
+		blocks.append(row_blocks)
+	return blocks
 
-		solid = True
-		if( val < lum_limit and platform == 0 ):
-			# We have found a new platform
-			platform = 1
-			blockID += 1
-		elif( platform > 0 and ((val < lum_limit) or (hue > last_hue-hue_join and hue < last_hue+hue_join)) ):
-			# We have found another part of the platform
-			platform += 1
-		elif( platform > 0 ):
-			# We have found the end of the platform
-			platforms += 1
-			platform = 0
-		else:
-			row_blocks.append(0)
-			solid = False
-
-		# If this isnt the first row, and there is a block above, join it to our current block
-		if( solid ):
-			row_blocks.append(blockID)
-			if( y > 0 ):
-				for test in range(1,checks_above):
-					if( test > y ):
-						break
-					above = blocks[y-test][x]
-					if( above != blockID and above != 0 ):
-						convert_block_id(blocks, above, blockID)
-						convert_block_id(row_blocks, above, blockID)
-						break
-
-		lums.append( val )
-
-	blocks.append(row_blocks)
-
-
-# Initalise Pygame
-
-pygame.font.init()
-
-window_size = (800,600)
-display = pygame.display.set_mode(window_size)
-font = pygame.font.SysFont("Sans Serif", 30)
-
-pygame.display.set_caption("Solid Object Detection")
-
-
-# Load the image again TODO: Use image data from above!
-pyg_image = pygame.image.load(image)
-display.blit(pyg_image, (0, 0))
-
-# Create debug surfaces
-text_surface = pygame.Surface(window_size, pygame.SRCALPHA, 32)
-debug_surface = pygame.Surface(window_size, pygame.SRCALPHA, 32)
-
-text_surface = text_surface.convert_alpha()
-debug_surface = debug_surface.convert_alpha()
-
-# If enabled, loop through and colour each object
-if( show_debug ):
+def draw_debug(surface, blocks):
 	block_colours = []
-	# Create seperate surface to draw text onto, and make it transprent
-	
 	count = 0
 
 	for y in range(len(blocks)):
@@ -182,22 +155,43 @@ if( show_debug ):
 				block_colours.append((random.randint(0,255), random.randint(0,255), random.randint(0,255)))
 				count += 1
 				text = font.render(str(count), False, (255,0,0))
-				text_surface.blit(text,(x*scale,y*scale))
+				display.blit(text,(x*gScale,y*gScale))
 
-			pygame.draw.rect(debug_surface, col, (x*scale,y*scale,1*scale,1*scale))
+			pygame.draw.rect(surface, col, (x*gScale,y*gScale,1*gScale,1*gScale)) #debug_surface
 
-#print(blocks)
-print(str(platforms) + " platform(s) detected")
-print(str(get_block_count(blocks)) + " object(s) detected")
+# Initalise pygame
+pygame.init()
+pygame.font.init()
 
-display.blit(text_surface, (0,0))
-pygame.display.update()
+window_size = (800,600)
+display = pygame.display.set_mode(window_size)
+font = pygame.font.SysFont("Sans Serif", 30)
 
+pygame.display.set_caption("AGM33")
+
+# Create debug surface
+debug_surface = pygame.Surface(window_size, pygame.SRCALPHA, 32)
+debug_surface = debug_surface.convert_alpha()
+
+#print(str(get_block_count(blocks)) + " object(s) detected")
+
+# Load critters
 pyg_critter = pygame.image.load("critter.bmp")
 critx = 320
 crity = 0
 
 print("It took " + str(pygame.time.get_ticks()) + " seconds to start")
+
+# Create a surface for the webcam (must be same size as webcam output)
+cap = cv2.VideoCapture(0)
+
+read_width = cap.get(3)
+read_height = cap.get(4)
+
+#cap.set(3,read_width)
+#cap.set(4,read_height)
+
+cam_surface = pygame.Surface((read_height, read_width), pygame.SRCALPHA, 32)
 
 run = True
 while run:
@@ -209,16 +203,25 @@ while run:
 		#	critx = pos[0]
 		#	crity = pos[1]
 
-	display.blit(pyg_image, (0,0))
+	# Capture and process webcam image
+	ret, pix = cap.read()	
+	blocks = process_image(pix)
 
-	if( show_debug ):
-		display.blit(debug_surface, (0,0))
-		display.blit(text_surface, (0,0))
+	# Draw webcam image
+	pygame.surfarray.blit_array(cam_surface, pix)
+	display.blit(cam_surface, (0,0))
 
+	# If debug is enabled, process and draw that
+	if( gDebug ):
+		draw_debug(display, blocks)
+
+	# Critter movement
 	#if( blocks[35+crity+1][critx] == 0 ):
 	#	crity += 1
 	#display.blit(pyg_critter, (critx-25, crity))
 
 	pygame.display.update()
+	pygame.time.wait(1)
 
+cap.release()
 pygame.quit()
