@@ -7,8 +7,8 @@ import cv2
 # SETTINGS
 gChecks_above = 10 # How many pixels are checked above for an object to join
 gLum_limit = 40.0 # Any luminosity below below % will count as dark
-gDebug = True # Will highlight detected objects
-gScale = 3 # Check every *scale* pixels
+gDebug = False # Will highlight detected objects
+gScale = 2 # Check every *scale* pixels
 
 # returns: hsl of rgb
 def rgb_to_hsl(rgb):
@@ -78,6 +78,15 @@ def get_block_count(source):
 			if( val != 0 and not val in found ):
 				found.append(val)
 	return len(found)
+
+# returns: bool - if considered solid
+def is_pixel_solid(pix):
+	hsl = colorsys.rgb_to_hsv(pix[2]/255, pix[1]/255, pix[0]/255)
+	val = hsl[2]*100
+	if( val < gLum_limit ):
+		return True
+	else:
+		return False
 
 # returns: block data
 def process_image(pix):
@@ -177,51 +186,85 @@ debug_surface = debug_surface.convert_alpha()
 
 # Load critters
 pyg_critter = pygame.image.load("critter.bmp")
-critx = 320
-crity = 0
+critx = 20
+crity = 50
 
 print("It took " + str(pygame.time.get_ticks()) + " seconds to start")
 
 # Create a surface for the webcam (must be same size as webcam output)
 cap = cv2.VideoCapture(0)
 
-read_width = cap.get(3)
-read_height = cap.get(4)
+read_width = cap.get(3)//gScale
+read_height = cap.get(4)//gScale
 
-#cap.set(3,read_width)
-#cap.set(4,read_height)
+cap.set(3,read_width)
+cap.set(4,read_height)
 
 cam_surface = pygame.Surface((read_height, read_width), pygame.SRCALPHA, 32)
 
+ret, pix = cap.read()	
+blocks = process_image(pix)
+
+scale_width = read_width//gScale
+scale_height = read_height//gScale
+
+# Main loop
 run = True
 while run:
+	# Handle mouse / keyboard input
 	for event in pygame.event.get():
 		if( event.type == pygame.QUIT ):
 			run = False
-		#if( event.type == pygame.MOUSEBUTTONUP ):
-		#	pos = pygame.mouse.get_pos()
-		#	critx = pos[0]
-		#	crity = pos[1]
+		if( event.type == pygame.MOUSEBUTTONUP ):
+			pos = pygame.mouse.get_pos()
+			critx = pos[0]//gScale
+			crity = pos[1]//gScale
 
-	# Capture and process webcam image
-	ret, pix = cap.read()	
-	blocks = process_image(pix)
+			check = pix[critx][crity]
+			val = colorsys.rgb_to_hls(check[2]/255, check[1]/255, check[0]/255)
+
+			pygame.draw.rect(display, pix[pos[0]][pos[1]], (400,400,30,30))
 
 	# Draw webcam image
-	pygame.surfarray.blit_array(cam_surface, pix)
-	display.blit(cam_surface, (0,0))
+	if( pygame.time.get_ticks() % 2 == 0 ):
+		# Capture and process webcam image
+		ret, pix = cap.read()
+		#blocks = process_image(pix)
 
-	# If debug is enabled, process and draw that
-	if( gDebug ):
-		draw_debug(display, blocks)
+		pygame.surfarray.blit_array(cam_surface, pix)
+		display.blit(cam_surface, (0,0))
+		#display.blit(pygame.transform.rotate(cam_surface, 270), (0,0))
+
+		# If debug is enabled, process and draw that
+		if( gDebug ):
+			draw_debug(display, blocks)
 
 	# Critter movement
-	#if( blocks[35+crity+1][critx] == 0 ):
-	#	crity += 1
-	#display.blit(pyg_critter, (critx-25, crity))
+	sx = critx*gScale
+	sy = crity*gScale
+
+	# Check if the critter is colliding or falling
+	if( not is_pixel_solid(pix[sx][sy+1]) ):
+		crity += 1
+		if( critx >= read_width ): critx = 0
+		elif( crity >= read_height ): crity = 0
+	else:
+		# if away from top, check if we need to push up
+		if( crity > 5 ):
+			if( is_pixel_solid(pix[sx][sy-3]) ):
+				crity -= 4
+		# EXPERIMENTAL: push left / right if pushed
+		if( critx < read_width-20 ):
+			if( is_pixel_solid(pix[sx-10][sy-10]) ):
+				critx += 4
+		if( 20 < read_width ):
+			if( is_pixel_solid(pix[sx+10][sy-10]) ):
+				critx -= 4
+
+	display.blit(pyg_critter, ((critx*gScale)-25, (crity*gScale)-35))
 
 	pygame.display.update()
-	pygame.time.wait(1)
+	pygame.time.wait(40)
 
 cap.release()
 pygame.quit()
