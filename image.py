@@ -18,47 +18,6 @@ def rgb_to_hsl(rgb):
 
 	return colorsys.rgb_to_hsv(r, g, b)
 
-	rgb = list(rgb)
-
-	for i in range(3):
-		rgb[i] = rgb[i] / 255
-
-	rmin = min(rgb)
-	rmax = max(rgb)
-
-	luminosity = ((rmin + rmax )/2) * 100
-
-	saturation = 0
-	# If min & max are not equal, we have saturation!
-	if( not rmin == rmax ):
-		if( luminosity <= 0.5 ):
-			saturation = (rmax - rmin)/(rmax + rmin)
-		else:
-			saturation = (rmax - rmin)/(2.0 - rmax - rmin)
-
-		saturation = saturation*100
-
-	hue = 0
-	# Only calculate the hue if there's saturation
-	if( not saturation == 0 ):
-		r = rgb[0]
-		g = rgb[1]
-		b = rgb[2]
-
-		if( rmax == r ):
-			hue = (g-b)/(rmax-rmin)
-		elif( rmax == g ):
-			hue = 2.0 + ( (b-r)/(rmax-rmin) )
-		elif( rmax == b ):
-			hue = 4.0 + ( (r-g)/rmax-rmin )
-
-		hue = hue * 60
-		if( hue < 0 ):
-			hue += 360
-
-	return (hue, saturation, luminosity)
-	# END OF RGB_TO_HSL
-
 def convert_block_id(source, tochange, newid):
 	for i in range(0,len(source)):
 		if( isinstance(source[i], list) ):
@@ -200,7 +159,9 @@ read_height = cap.get(4)//gScale
 cap.set(3,read_width)
 cap.set(4,read_height)
 
-cam_surface = pygame.Surface((read_height, read_width), pygame.SRCALPHA, 32)
+temp_surface = pygame.Surface((read_height, read_width), pygame.SRCALPHA, 32) # for rendering the camera output
+cam_surface = pygame.Surface((read_width, read_height), pygame.SRCALPHA, 32)
+buffer_surface = pygame.Surface((read_height, read_width), pygame.SRCALPHA, 32)
 
 ret, pix = cap.read()	
 blocks = process_image(pix)
@@ -217,13 +178,17 @@ while run:
 			run = False
 		if( event.type == pygame.MOUSEBUTTONUP ):
 			pos = pygame.mouse.get_pos()
+			# Invert them to account for surface rotation
 			critx = pos[0]//gScale
 			crity = pos[1]//gScale
 
 			check = pix[critx][crity]
 			val = colorsys.rgb_to_hls(check[2]/255, check[1]/255, check[0]/255)
 
-			pygame.draw.rect(display, pix[pos[0]][pos[1]], (400,400,30,30))
+			pygame.draw.rect(buffer_surface, pix[pos[0]][pos[1]], (400,400,30,30))
+		if( event.type == pygame.KEYDOWN ):
+			if( event.key == pygame.K_UP ):
+				crity -= 30;
 
 	# Draw webcam image
 	if( pygame.time.get_ticks() % 2 == 0 ):
@@ -231,37 +196,46 @@ while run:
 		ret, pix = cap.read()
 		#blocks = process_image(pix)
 
-		pygame.surfarray.blit_array(cam_surface, pix)
-		display.blit(cam_surface, (0,0))
+		pygame.surfarray.blit_array(temp_surface, pix)
+		#cam_surface = pygame.transform.rotate(temp_surface, 270)
+		buffer_surface.blit(temp_surface, (0,0))
 		#display.blit(pygame.transform.rotate(cam_surface, 270), (0,0))
 
 		# If debug is enabled, process and draw that
 		if( gDebug ):
-			draw_debug(display, blocks)
+			draw_debug(buffer_surface, blocks)
 
 	# Critter movement
 	sx = critx*gScale
 	sy = crity*gScale
 
+	if( sx > read_height-10 ):
+		sx = 0
+		critx = 0
+	if( sy > read_width-10 ):
+		sy = 0
+		crity = 0
+
 	# Check if the critter is colliding or falling
-	if( not is_pixel_solid(pix[sx][sy+1]) ):
-		crity += 1
-		if( critx >= read_width ): critx = 0
-		elif( crity >= read_height ): crity = 0
+	if( not is_pixel_solid(pix[sx+1][sy]) ):
+		critx += 1
 	else:
 		# if away from top, check if we need to push up
-		if( crity > 5 ):
-			if( is_pixel_solid(pix[sx][sy-3]) ):
-				crity -= 4
-		# EXPERIMENTAL: push left / right if pushed
-		if( critx < read_width-20 ):
-			if( is_pixel_solid(pix[sx-10][sy-10]) ):
-				critx += 4
-		if( 20 < read_width ):
-			if( is_pixel_solid(pix[sx+10][sy-10]) ):
+		if( critx > 5 ):
+			if( is_pixel_solid(pix[sx-3][sy]) ):
 				critx -= 4
+		# EXPERIMENTAL: push left / right if pushed
+		if( crity < read_width-20 ):
+			if( is_pixel_solid(pix[sx-10][sy-10]) ):
+				crity += 4
+		if( 20 < read_width ):
+			if( is_pixel_solid(pix[sx-10][sy+10]) ):
+				crity -= 4
 
-	display.blit(pyg_critter, ((critx*gScale)-25, (crity*gScale)-35))
+	buffer_surface.blit(pyg_critter, ((critx*gScale)-35, (crity*gScale)-25)) #-25, -35
+
+	display.blit( pygame.transform.rotate(buffer_surface, 270), (0,0))
+	#display.blit(buffer_surface, (0,0))
 
 	pygame.display.update()
 	pygame.time.wait(40)
