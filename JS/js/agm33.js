@@ -17,6 +17,9 @@ var Engine = Matter.Engine,
 	Events = Matter.Events,
 	Body = Matter.Body;
 
+// Leap motion
+var leapCursor;
+
 // Main Variables
 var engine;
 var render;
@@ -74,6 +77,16 @@ function initMatter() {
 		World.add(engine.world, item);
 	}
 }
+function initLeap() {
+	leapCursor = Bodies.rectangle(100,100, 10,10, {
+		isStatic: true,
+		render: {
+			fillStyle: "purple",
+			lineWidth: 2
+		}
+	});
+	World.add(engine.world, leapCursor);
+}
 function analyseImage() {
 	var pix = ctx.getImageData(0,0,image.width,image.height).data;
 	var solid = 0;
@@ -124,8 +137,23 @@ function endPlatform(_startX, _startY, _solid) {
 
 image.onload = function() {
 	initMatter();
+	initLeap();
 	analyseImage();
 }
+Leap.loop({hand: function(_hand) {
+	var screenPosition = _hand.screenPosition(_hand.palmPosition);
+	// screenPosition - 0 = x, 1 = y, 2 = z, .toPrecision
+	
+	Body.setPosition(leapCursor, {
+		x: screenPosition[0]-600,
+		y: screenPosition[1]+400
+	});
+	
+	//console.log(leapCursor.position);
+}})
+.use('screenPosition', {
+	scale: 1
+});
 
 function rgbToHsl(r, g, b){
 	r /= 255, g /= 255, b /= 255;

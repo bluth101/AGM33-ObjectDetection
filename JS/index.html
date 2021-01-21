@@ -4,7 +4,12 @@
 	<meta charset="utf-8">
 	<link rel="icon" href="favicon.ico">
 	<title>AGM33</title>
+
 	<script src="js/matter.min.js"></script>
+	<script src="//js.leapmotion.com/leap-0.6.4.js"></script>
+	<script src="//js.leapmotion.com/leap-plugins-0.1.10.js"></script>
+	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+	
 	<style>
 		html {
 			background-color: #18181d;
@@ -12,11 +17,42 @@
 		#image {
 			display: none;
 		}
+		#cursor {
+		  width: 60px;
+		  height: 60px;
+		  position: fixed;
+		  margin-left: -50px;
+		  margin-top: -50px;
+		  z-index: 910;
+		  opacity: 0.2;
+			visibility: hidden;
+		  background: blue;
+		  border-radius: 100%;
+		}
 	</style>
 </head>
 <body>
+
 	<canvas id="image"></canvas>
 	<script src="js/agm33.js"></script>
+	
+	<div id="cursor"></div>
+	<script>
+		var cursor = $('#cursor');
+	
+		Leap.loop({hand: function(_hand) {
+			var screenPosition = _hand.screenPosition(_hand.palmPosition);
+			// screenPosition - 0 = x, 1 = y, 2 = z, .toPrecision
+			
+			cursor.css({
+				left: screenPosition[0] + 'px',
+				top:  screenPosition[1]+600 + 'px'
+			  });
+		}})
+		.use('screenPosition', {
+			scale: 1
+		});
+	</script>
 	<canvas id="render"></canvas>
 </body>
 </html>
