@@ -1,5 +1,6 @@
 # AGM33 - Beyond The Screen
-This is a repository for my MA work on the AGM33 module. It is a script for detecting solid objects in an image, that will then be interactive using a projector, Leap Motion, and possibly an arduino.
+This is a repository for my MA work on the AGM33 module. It can detect solid objects in an image, these can then be interacted with using a projector, and Leap Motion.
+The JavaScript version is a simple game.
 
 For the Python version it requires:
-pygame, nummy, and opencv
+pygame, numpy, and opencv
