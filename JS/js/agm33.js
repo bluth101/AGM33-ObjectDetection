@@ -111,14 +111,20 @@ function playSound(_name, _volume) {
 	for( var i = 0; i < SOUNDS.length; i++ ) {
 		if( SOUNDS[i].id == _name ) {
 			SOUNDS[i].volume = _volume;
+			SOUNDS[i].currentTime = 0.0;
 			SOUNDS[i].play();
 			return;
 		}
 	}
 }
 function choose(_list) {
-	var num = Math.round(Math.random()*_list.length);
+	var num = randRange(0, _list.length-1);
 	return _list[num];
+}
+function getTexture(_num, _offset) {
+	var texPerEnemy = 2;
+	var enemyTextures = ["enemy1.png", "enemy1_hurt.png", "enemy2.png", "enemy2_hurt.png"];
+	return enemyTextures[(_num*texPerEnemy)+_offset];
 }
 function matterCollision(e) {
     var pairs = e.pairs;
@@ -128,7 +134,7 @@ function matterCollision(e) {
         var pair = pairs[i];
         
         // ENEMY COLLISIONS
-        if( pair.bodyB.label.substring(0, 5) == "enemy" ) {
+        if( pair.bodyB.label.substring(1, 6) == "enemy" ) {
         	// With side death walls
         	if( pair.bodyA.label == "death" ) {
         		pair.bodyB.render.fillStyle = '#333';
@@ -136,16 +142,23 @@ function matterCollision(e) {
         	}
         	// With player weapon
         	if( pair.bodyA.label == "weapon" ) {
-	        	var health = pair.bodyB.label.substring(5, pair.bodyB.label.length) - 1;
-	        	pair.bodyB.render.sprite.texture = "img/enemy1_hurt.png";
-	        	pair.bodyB.label = "enemy" + health;
+        		var tex = pair.bodyB.label.substring(0, 1);
+	        	var health = pair.bodyB.label.substring(6, pair.bodyB.label.length) - 1;
+	        	pair.bodyB.render.sprite.texture = "img/" + getTexture(tex, 1);
+	        	pair.bodyB.label = tex + "enemy" + health;
 
 	        	if( health <= 0 ) {
+	        		pair.bodyB.label = "dead";
 					World.remove(engine.world, pair.bodyB);
 	        		playSound(choose(["bap1", "bap2", "bap3", "bap4"]), 1);
 	        	}
-	        	else
+	        	else {
 	        		playSound(choose(["squish", "pop"]), 0.5);
+	        		setTimeout(function() {
+	        			if( pair.bodyB.label != "dead" )
+	        				pair.bodyB.render.sprite.texture = "img/" + getTexture(tex, 0);
+	        		}, 500);
+	        	}
         	}
         	// With ground (solid objects)
         	if( pair.bodyA.label == "rlobj" ) {
@@ -254,6 +267,9 @@ function endPlatform(_startX, _startY, _solid) {
 	});
 	World.add(engine.world, platform);
 }
+function randRange(_min, _max) {
+	return Math.round(Math.random()*_max)+_min;
+}
 function rgbToHsl(r, g, b){
 	r /= 255, g /= 255, b /= 255;
   var max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -296,19 +312,20 @@ Leap.loop({hand: function(_hand) {
 	scale: 1
 });
 setInterval(function() {
-	var health = Math.round(Math.random()*MAX_HEALTH)+MIN_HEALTH;
-	var spawnx = Math.round(Math.random()*maxSpawnX)+minSpawnX;
+	var health 	= randRange(MIN_HEALTH, MAX_HEALTH);
+	var spawnx 	= randRange(minSpawnX+40, maxSpawnX-minSpawnX-40);
+	var tex 	= randRange(0, 1);
 
 	var item = Bodies.circle(spawnx, 20, 10, {
 		mass: 0.5,
 		frictionAir: 1.0,
-		label: "enemy" + health,
+		label: tex + "enemy" + health,
 		collisionFilter: {
 			category: 0x0001
 		},
 		render: {
             sprite: {
-                texture: 'img/enemy1.png',
+                texture: 'img/' + getTexture(tex, 0),
                 xScale: 0.1,
                 yScale: 0.1
             }
