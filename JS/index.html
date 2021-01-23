@@ -29,6 +29,14 @@
 		  background: blue;
 		  border-radius: 100%;
 		}
+		#info {
+			z-index: 920;
+			position: fixed;
+			left: 10px;
+			top: 10px;
+			font-size: 30px;
+			color: #fff;
+		}
 	</style>
 </head>
 <body>
@@ -44,6 +52,8 @@
 	<audio id="squish" class="sounds"><source src="snd/squish.wav" type="audio/wav"></audio>
 	<audio id="pop" class="sounds"><source src="snd/pop.wav" type="audio/wav"></audio>
 
+	<!-- Main elements -->
+	<div id="info"></div>
 	<div id="cursor"></div>
 	<script>
 		var cursor = $('#cursor');

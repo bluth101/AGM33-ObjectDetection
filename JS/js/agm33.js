@@ -30,6 +30,7 @@ var mouseBox;
 var SOUNDS;
 var minSpawnX;
 var maxSpawnX;
+var lives = 5;
 
 // Constants
 const MAX_HEALTH = 3;
@@ -126,6 +127,9 @@ function getTexture(_num, _offset) {
 	var enemyTextures = ["enemy1.png", "enemy1_hurt.png", "enemy2.png", "enemy2_hurt.png"];
 	return enemyTextures[(_num*texPerEnemy)+_offset];
 }
+function updateInfo() {
+	document.getElementById("info").innerText = "Lives: " + lives;
+}
 function matterCollision(e) {
     var pairs = e.pairs;
 
@@ -144,28 +148,38 @@ function matterCollision(e) {
         	if( pair.bodyA.label == "weapon" ) {
         		var tex = pair.bodyB.label.substring(0, 1);
 	        	var health = pair.bodyB.label.substring(6, pair.bodyB.label.length) - 1;
+
 	        	pair.bodyB.render.sprite.texture = "img/" + getTexture(tex, 1);
 	        	pair.bodyB.label = tex + "enemy" + health;
 
 	        	if( health <= 0 ) {
-	        		pair.bodyB.label = "dead";
 					World.remove(engine.world, pair.bodyB);
 	        		playSound(choose(["bap1", "bap2", "bap3", "bap4"]), 1);
 	        	}
 	        	else {
 	        		playSound(choose(["squish", "pop"]), 0.5);
-	        		setTimeout(function() {
-	        			if( pair.bodyB.label != "dead" )
-	        				pair.bodyB.render.sprite.texture = "img/" + getTexture(tex, 0);
-	        		}, 500);
+	        		setTimeout(function() { revertEyes(pair.bodyB, tex); }, 500);
 	        	}
         	}
         	// With ground (solid objects)
         	if( pair.bodyA.label == "rlobj" ) {
-        		pair.bodyB.frictionAir = 0.1;
+        		// Only apply changes the first time it hits the ground
+        		if( pair.bodyB.collisionFilter.category == 0x0001 ) {
+        			changeLives(-1);
+        			pair.bodyB.frictionAir = 0.1;
+        			pair.bodyB.collisionFilter.category = 0x0002;
+        		}
+        	}
+        	// Vaccine (Extra life)
+        	if( pair.bodyA.label == "life" ) {
+        		changeLives(1);
         	}
         }
     }
+}
+function revertEyes(_what, _tex) {
+	if( _what.label.substring(1, 6) == "enemy" )
+		_what.render.sprite.texture = "img/" + getTexture(_tex, 0);
 }
 function analyseImage() {
 	var pix = ctx.getImageData(0,0,image.width,image.height).data;
@@ -290,6 +304,10 @@ function rgbToHsl(r, g, b){
 	}
   return [h, s, l];
 }
+function changeLives(_change) {
+	lives += _change;
+	updateInfo();
+}
 
 image.onload = function() {
 	// Page has finished loading, start loading the game
@@ -297,6 +315,7 @@ image.onload = function() {
 	initLeap();
 	initSounds();
 	analyseImage();
+	updateInfo();
 }
 Leap.loop({hand: function(_hand) {
 	var screenPosition = _hand.screenPosition(_hand.palmPosition);
