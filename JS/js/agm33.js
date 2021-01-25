@@ -68,8 +68,11 @@ function initMatter() {
 	mouseBox = Bodies.rectangle(300, 100, 40, 40, {
 		label: "weapon",
 		render: {
-			fillStyle: "green",
-			lineWidth: 0
+			sprite: {
+				texture: "img/cloth.png",
+				xScale: 0.2,
+				yScale: 0.2
+			}
 		}
 	});
 
@@ -137,10 +140,39 @@ function matterCollision(e) {
     for (var i = 0; i < pairs.length; i++) {
         var pair = pairs[i];
         
+		// Vaccine (Extra life)
+    	if( pair.bodyA.label == "weapon" && pair.bodyB.label == "life" ) {
+    		changeLives(1);
+    		World.remove(engine.world, pair.bodyB);
+    		playSound("chirp", 0.25);
+    	}
+
+        // CRATE COLLISIONS
+        if( pair.bodyB.label.substring(1, 6) == "crate" ) {
+        	if( pair.bodyA.label == "weapon" ) {
+        		var tex = pair.bodyB.label.substring(0, 1);
+	        	var health = pair.bodyB.label.substring(6, pair.bodyB.label.length) - 1;
+	        	playSound(choose(["wood1", "wood2", "wood3"]), 0.5);
+
+	        	if( health <= 0 ) {
+	        		pair.bodyB.render.sprite.texture = "img/vaccine.png";
+	        		pair.bodyB.render.sprite.xScale = 0.2;
+	        		pair.bodyB.render.sprite.yScale = 0.2;
+	        		pair.bodyB.frictionAir = 0.1;
+	        		pair.bodyB.label = "life";
+	        	}
+	        	else {
+	        		pair.bodyB.label = tex + "crate" + health;
+	        		pair.bodyB.render.sprite.texture = "img/crate_broken.png";
+	        	}
+        	}
+        }
+
         // ENEMY COLLISIONS
         if( pair.bodyB.label.substring(1, 6) == "enemy" ) {
         	// With side death walls
         	if( pair.bodyA.label == "death" ) {
+        		changeLives(1); // To offset the -1 life from "rlobj"
         		pair.bodyB.render.fillStyle = '#333';
         		World.remove(engine.world, pair.bodyB);
         	}
@@ -169,10 +201,6 @@ function matterCollision(e) {
         			pair.bodyB.frictionAir = 0.1;
         			pair.bodyB.collisionFilter.category = 0x0002;
         		}
-        	}
-        	// Vaccine (Extra life)
-        	if( pair.bodyA.label == "life" ) {
-        		changeLives(1);
         	}
         }
     }
@@ -308,6 +336,18 @@ function changeLives(_change) {
 	lives += _change;
 	updateInfo();
 }
+function death(_state) {
+	var col = "#18181d"; // Same as background
+	if( _state == true ) { col = "red"; } 
+
+	var hidden_parts = ["rlobj", "death"];
+
+	for( var i = 0; i < engine.world.bodies.length; i++ ) {
+		var current = engine.world.bodies[i];
+		if( hidden_parts.indexOf(current.label) != -1 )
+			current.render.visible = _state;
+	}
+}
 
 image.onload = function() {
 	// Page has finished loading, start loading the game
@@ -316,6 +356,8 @@ image.onload = function() {
 	initSounds();
 	analyseImage();
 	updateInfo();
+
+	death(false);
 }
 Leap.loop({hand: function(_hand) {
 	var screenPosition = _hand.screenPosition(_hand.palmPosition);
@@ -334,19 +376,30 @@ setInterval(function() {
 	var health 	= randRange(MIN_HEALTH, MAX_HEALTH);
 	var spawnx 	= randRange(minSpawnX+40, maxSpawnX-minSpawnX-40);
 	var tex 	= randRange(0, 1);
+	var texName = 'img/' + getTexture(tex, 0);
+	var texScale = 0.1;
+	var obj 	= "enemy";
+
+	// 1 in 5 chance to spawn a crate
+	if( randRange(0, 4) == 0 ) {
+		obj = "crate";
+		texName = "img/crate.png";
+		texScale = 0.3;
+		health = 2;
+	}
 
 	var item = Bodies.circle(spawnx, 20, 10, {
 		mass: 0.5,
 		frictionAir: 1.0,
-		label: tex + "enemy" + health,
+		label: tex + obj + health,
 		collisionFilter: {
 			category: 0x0001
 		},
 		render: {
             sprite: {
-                texture: 'img/' + getTexture(tex, 0),
-                xScale: 0.1,
-                yScale: 0.1
+                texture: texName,
+                xScale: texScale,
+                yScale: texScale
             }
         }
 	});
