@@ -31,12 +31,15 @@ var SOUNDS;
 var minSpawnX;
 var maxSpawnX;
 var lives = 5;
+var level = 1;
+var killed = 0;
 
 // Constants
 const MAX_HEALTH = 3;
 const MIN_HEALTH = 1;
 const SCALE = 3;
 const deathAreaOffset = 2;
+const XP_CURVE = 0.5;
 
 function initMatter() {
 	// Setup preview canvas
@@ -131,7 +134,20 @@ function getTexture(_num, _offset) {
 	return enemyTextures[(_num*texPerEnemy)+_offset];
 }
 function updateInfo() {
-	document.getElementById("info").innerText = "Lives: " + lives;
+	var kills_req = Math.round((level*XP_CURVE)*10);
+	if( killed >= kills_req ) {
+		level += 1;
+		killed = 0;
+		playSound("level", 1);
+		updateInfo();
+		return;
+	}
+
+	var buffer = "Lives: " + lives;
+	buffer += "\r\n" + "Level: " + level;
+	buffer += "\r\n" + "Kills: " + killed + "/" + kills_req;
+
+	document.getElementById("info").innerText = buffer;
 }
 function matterCollision(e) {
     var pairs = e.pairs;
@@ -172,7 +188,9 @@ function matterCollision(e) {
         if( pair.bodyB.label.substring(1, 6) == "enemy" ) {
         	// With side death walls
         	if( pair.bodyA.label == "death" ) {
-        		changeLives(1); // To offset the -1 life from "rlobj"
+        		// 50% chance to offset the -1 life from "rlobj"
+        		if( randRange(0, 1) == 0 )
+        			changeLives(1);
         		pair.bodyB.render.fillStyle = '#333';
         		World.remove(engine.world, pair.bodyB);
         	}
@@ -185,8 +203,10 @@ function matterCollision(e) {
 	        	pair.bodyB.label = tex + "enemy" + health;
 
 	        	if( health <= 0 ) {
+	        		killed += 1;
 					World.remove(engine.world, pair.bodyB);
 	        		playSound(choose(["bap1", "bap2", "bap3", "bap4"]), 1);
+	        		updateInfo();
 	        	}
 	        	else {
 	        		playSound(choose(["squish", "pop"]), 0.5);
@@ -357,7 +377,8 @@ image.onload = function() {
 	analyseImage();
 	updateInfo();
 
-	death(false);
+	death(true);
+	spawn_enemy();
 }
 Leap.loop({hand: function(_hand) {
 	var screenPosition = _hand.screenPosition(_hand.palmPosition);
@@ -372,7 +393,8 @@ Leap.loop({hand: function(_hand) {
 .use('screenPosition', {
 	scale: 1
 });
-setInterval(function() {
+
+function spawn_enemy() {
 	var health 	= randRange(MIN_HEALTH, MAX_HEALTH);
 	var spawnx 	= randRange(minSpawnX+40, maxSpawnX-minSpawnX-40);
 	var tex 	= randRange(0, 1);
@@ -380,8 +402,8 @@ setInterval(function() {
 	var texScale = 0.1;
 	var obj 	= "enemy";
 
-	// 1 in 5 chance to spawn a crate
-	if( randRange(0, 4) == 0 ) {
+	// 1 in 10 chance to spawn a crate if below 5 lives
+	if( lives < 5 && randRange(0, 10) == 0 ) {
 		obj = "crate";
 		texName = "img/crate.png";
 		texScale = 0.3;
@@ -404,4 +426,9 @@ setInterval(function() {
         }
 	});
 	World.add(engine.world, item);
-}, 3000);
+
+	var timer = 3500 - (level*500);
+	if( timer < 300 ) { timer = 300; }
+
+	setTimeout(spawn_enemy, timer);
+}
