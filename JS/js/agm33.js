@@ -41,6 +41,23 @@ const SCALE = 3;
 const deathAreaOffset = 2;
 const XP_CURVE = 0.5;
 
+function change_image() {
+	var file = document.getElementById("user_image").value;
+	image = new Image();
+	image.crossOrigin = "anonymous";
+	
+	image.onload = function() {
+		ctx.canvas.width = image.width;
+		ctx.canvas.height = image.height;
+		ctx.drawImage(image,0,0);
+		analyseImage();
+		console.log("Image changed!");
+	}
+
+	image.src = file;
+	console.log("Attempting to load image: " + file);
+	return false;
+}
 function initMatter() {
 	// Setup preview canvas
 	ctx.canvas.width = image.width;
@@ -134,6 +151,17 @@ function getTexture(_num, _offset) {
 	return enemyTextures[(_num*texPerEnemy)+_offset];
 }
 function updateInfo() {
+	// Show game over screen
+	if( lives == 0 ) {
+		var go = document.getElementById("game_over");
+		go.innerText = "Thanks for playing!\r\nYou reached round "+level+" and banished "+killed+" covids!";
+		go.style.visibility = "visible";
+
+		document.getElementById("info").innerText = "";
+		return;
+	}
+
+	// Otherwise update info
 	var kills_req = Math.round((level*XP_CURVE)*10);
 	if( killed >= kills_req ) {
 		level += 1;
@@ -144,8 +172,8 @@ function updateInfo() {
 	}
 
 	var buffer = "Lives: " + lives;
-	buffer += "\r\n" + "Level: " + level;
-	buffer += "\r\n" + "Kills: " + killed + "/" + kills_req;
+	buffer += "\r\n" + "Round: " + level;
+	buffer += "\r\n" + "Banished: " + killed + "/" + kills_req;
 
 	document.getElementById("info").innerText = buffer;
 }
@@ -203,10 +231,13 @@ function matterCollision(e) {
 	        	pair.bodyB.label = tex + "enemy" + health;
 
 	        	if( health <= 0 ) {
-	        		killed += 1;
+	        		// Enemy killed
 					World.remove(engine.world, pair.bodyB);
 	        		playSound(choose(["bap1", "bap2", "bap3", "bap4"]), 1);
-	        		updateInfo();
+	        		if( lives > 0 ) {
+	        			killed += 1;
+	        			updateInfo();
+	        		}
 	        	}
 	        	else {
 	        		playSound(choose(["squish", "pop"]), 0.5);
@@ -353,7 +384,11 @@ function rgbToHsl(r, g, b){
   return [h, s, l];
 }
 function changeLives(_change) {
+	if( lives == 0 ) { return; }
+
 	lives += _change;
+
+	if( lives <= 0 ) { death(true); }
 	updateInfo();
 }
 function death(_state) {
@@ -377,7 +412,7 @@ image.onload = function() {
 	analyseImage();
 	updateInfo();
 
-	death(true);
+	death(false);
 	spawn_enemy();
 }
 Leap.loop({hand: function(_hand) {
@@ -430,5 +465,5 @@ function spawn_enemy() {
 	var timer = 3500 - (level*500);
 	if( timer < 300 ) { timer = 300; }
 
-	setTimeout(spawn_enemy, timer);
+	if( lives > 0 ) { setTimeout(spawn_enemy, timer); }
 }

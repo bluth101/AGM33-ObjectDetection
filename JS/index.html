@@ -13,6 +13,7 @@
 	<style>
 		html {
 			background-color: #18181d;
+			font-family: sans-serif;
 		}
 		#image {
 			display: none;
@@ -37,6 +38,18 @@
 			font-size: 30px;
 			color: #fff;
 		}
+		#game_over {
+			z-index: 921;
+			position: fixed;
+			left: 17%;
+			top: 25%;
+			font-size: 40px;
+			color: white;
+			text-align: center;
+			background-color: #333;
+			padding: 30px;
+			visibility: hidden;
+		}
 	</style>
 </head>
 <body>
@@ -59,6 +72,7 @@
 
 	<!-- Main elements -->
 	<div id="info"></div>
+	<div id="game_over"></div>
 	<div id="cursor"></div>
 	<script>
 		var cursor = $('#cursor');
@@ -77,5 +91,10 @@
 		});
 	</script>
 	<canvas id="render"></canvas>
+	<br>
+	<a href=""><button>Reload</button></a>
+	<button onclick="death(false)">Hide</button>
+	<button onclick="death(true)">Show</button>
+	<input type="number" value="1">
 </body>
 </html>
